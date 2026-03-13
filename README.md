@@ -7,7 +7,7 @@ It helps you avoid dumping entire Markdown files into context by providing:
 - section extraction by stable section id (`mdq get`)
 - keyword search mapped to section ids (`mdq find`)
 
-The default `tree` output is **valid Markdown** with minimal **ASCII-only format markers**.
+The default `tree` output is valid Markdown with minimal ASCII-only format markers.
 Titles and summary payload text are printed as original UTF-8.
 
 ---
@@ -17,12 +17,12 @@ Titles and summary payload text are printed as original UTF-8.
 Markdown docs often contain token-heavy noise:
 - huge tables
 - long code blocks
-- embedded images (including `data:image/...;base64,...`)
+- embedded images, including `data:image/...;base64,...`
 
-Agents usually don’t need *everything* at once. They need:
-1) a map of the structure
-2) a way to jump to the relevant section(s)
-3) a way to fetch only what’s necessary
+Agents usually do not need everything at once. They need:
+1. a map of the structure
+2. a way to jump to the relevant section
+3. a way to fetch only what is necessary
 
 `mdq` is designed for that workflow.
 
@@ -30,13 +30,13 @@ Agents usually don’t need *everything* at once. They need:
 
 ## Quickstart
 
-### 1) Print an annotated outline
+### 1. Print an annotated outline
 
 ```sh
 mdq tree README.md
-````
+```
 
-Example output (annotated Markdown):
+Example output:
 
 ```md
 # [s1 L1-L30] Main Header
@@ -49,12 +49,12 @@ C: sh, 3 lines
 T: id | title | range (3 cols x 5 rows)
 ```
 
-* `s1`, `s1-1`, ... are stable section ids (not based on line numbers).
-* `Lx-Ly` is the section range in the original file (inclusive).
-* The summary line is deterministic, first-block-only, and plaintext.
-* Empty sections do not emit a summary line.
+- `s1`, `s1-1`, ... are stable section ids and do not contain line numbers.
+- `Lx-Ly` is the inclusive section range in the original file.
+- Summary lines are deterministic, first-block-only, and plaintext.
+- Empty sections do not emit a summary line.
 
-### 2) Extract a section by id
+### 2. Extract a section by id
 
 ```sh
 mdq get README.md --id s1-2
@@ -62,7 +62,7 @@ mdq get README.md --id s1-2
 
 This returns the exact raw slice of the original Markdown for that section range.
 
-### 3) Find text and jump to a section
+### 3. Find text and jump to a section
 
 ```sh
 mdq find README.md install
@@ -79,72 +79,68 @@ L14 [s1-1] echo "hello"
 
 ## Commands
 
-* `mdq tree <file>`: annotated outline + first-block summaries
-* `mdq get <file> --id <section_id>`: section extraction
-* `mdq find <file> <query>`: search mapped to section ids
+- `mdq tree <file>`: annotated outline and first-block summaries
+- `mdq get <file> --id <section_id>`: section extraction
+- `mdq find <file> <query>`: search mapped to section ids
 
-See: `docs/cli-reference.md`
+See `docs/cli-reference.md`.
 
 ---
 
-## Output formats
+## Output Formats
 
-### Annotated Markdown (default for `tree`)
+### Annotated Markdown
 
-`mdq tree` produces "annotated Markdown":
+`mdq tree` produces annotated Markdown:
 
-* headings are preserved (`#`..`######`)
-* metadata markers are ASCII: `[<id> L<start>-L<end>]`
-* summary markers are ASCII tags: `P:`, `T:`, etc.
-* titles and summary payload text remain original UTF-8
-* summary is first-block-only; empty sections emit no summary line
+- headings are preserved (`#`..`######`)
+- metadata markers are ASCII: `[<id> L<start>-L<end>]`
+- summary markers are ASCII tags: `P:`, `T:`, etc.
+- titles and summary payload text remain original UTF-8
+- summary is first-block-only; empty sections emit no summary line
 
 Format spec:
-
-* `docs/format-annotated-md-v1.md`
+- `docs/format-annotated-md-v1.md`
 
 ### JSON
 
 Each command can produce JSON for tool integration.
 
 JSON spec:
-
-* `docs/json-output-v1.md`
+- `docs/json-output-v1.md`
 
 ---
 
 ## Section IDs
 
-### IDs do NOT contain line numbers
+### IDs do not contain line numbers
 
-Line numbers change often during editing; ids must remain stable under edits inside a section body.
+Line numbers change often during editing; ids remain stable under edits inside a section body.
 
 ### IDs are hierarchical by sibling index
 
-* root children: `s1`, `s2`, ...
-* children: `s1-1`, `s1-2`, ...
-* deeper: `s1-2-1`, ...
+- root children: `s1`, `s2`, ...
+- children: `s1-1`, `s1-2`, ...
+- deeper: `s1-2-1`, ...
 
-IDs may change if the heading structure changes (inserting/removing/reordering headings). This is expected.
+IDs may change if the heading structure changes. This is expected.
 
 ---
 
-## Summary behavior (first-block-only)
+## Summary Behavior
 
-For each section, mdq summarizes at most one content block:
+For each section, `mdq` summarizes at most one content block:
 
-* P: paragraph
-* Q: blockquote
-* L: list (up to 3 items)
-* C: fenced code (lang + line count only)
-* T: table (header columns + shape only)
-* I: image (alt + src kind only; never prints base64)
+- `P`: paragraph
+- `Q`: blockquote
+- `L`: list (up to 3 items)
+- `C`: fenced code (language + line count only)
+- `T`: table (header columns + shape only)
+- `I`: image (alt + source kind only, never base64)
 
 Important:
-
-* Summary scanning for a section considers only content **before its first nested heading**.
-
-  * If a section contains only subsections and no body content, it emits no summary line.
+- Summary scanning for a section considers only content before its first nested heading.
+- If a section contains only subsections and no body content, it emits no summary line.
 
 ---
 
@@ -156,7 +152,7 @@ Important:
 cargo install --path .
 ```
 
-(Once published:)
+Once published:
 
 ```sh
 cargo install mdq
@@ -166,11 +162,11 @@ cargo install mdq
 
 ## Development
 
-* Spec: `docs/spec-mvp.md`
-* Format: `docs/format-annotated-md-v1.md`
-* JSON: `docs/json-output-v1.md`
-* Architecture: `docs/architecture.md`
-* Testing: `docs/testing.md`
+- Spec: `docs/spec-mvp.md`
+- Format: `docs/format-annotated-md-v1.md`
+- JSON: `docs/json-output-v1.md`
+- CLI: `docs/cli-reference.md`
+- Testing: `docs/testing.md`
 
 ---
 
