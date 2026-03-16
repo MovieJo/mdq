@@ -149,13 +149,13 @@ pub struct FindArgs {
     pub case_sensitive: bool,
 
     /// Stop after emitting N matching lines.
-    #[arg(long, value_name = "N")]
-    pub max_matches: Option<usize>,
+    #[arg(long, value_name = "N", default_value_t = 200)]
+    pub max_matches: usize,
 }
 
 impl FindArgs {
     fn validate(&self) -> Result<(), UsageError> {
-        if matches!(self.max_matches, Some(0)) {
+        if self.max_matches == 0 {
             return Err(UsageError::new("--max-matches must be greater than 0"));
         }
 
@@ -342,7 +342,24 @@ mod tests {
                 assert_eq!(args.format, FindFormat::Json);
                 assert!(args.regex);
                 assert!(args.case_sensitive);
-                assert_eq!(args.max_matches, Some(5));
+                assert_eq!(args.max_matches, 5);
+            }
+            _ => panic!("expected find command"),
+        }
+    }
+
+    #[test]
+    fn find_command_uses_documented_default_max_matches() {
+        let cli = parse_ok(&["mdq", "find", "README.md", "install"]);
+
+        match cli.command {
+            Commands::Find(args) => {
+                assert_eq!(args.file, PathBuf::from("README.md"));
+                assert_eq!(args.query, "install");
+                assert_eq!(args.format, FindFormat::Text);
+                assert!(!args.regex);
+                assert!(!args.case_sensitive);
+                assert_eq!(args.max_matches, 200);
             }
             _ => panic!("expected find command"),
         }
