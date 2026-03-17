@@ -1,4 +1,6 @@
 use std::ffi::OsString;
+use std::fs;
+use std::io;
 use std::path::PathBuf;
 
 use clap::error::ErrorKind;
@@ -9,6 +11,137 @@ pub const EXIT_INTERNAL_ERROR: i32 = 1;
 pub const EXIT_USAGE_ERROR: i32 = 2;
 pub const EXIT_FILE_ERROR: i32 = 3;
 pub const EXIT_SECTION_NOT_FOUND: i32 = 4;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct LineRange {
+    content_start: usize,
+    content_end: usize,
+    full_end: usize,
+}
+
+#[derive(Debug)]
+pub enum InputError {
+    FileRead { path: PathBuf, source: io::Error },
+    Decode { path: PathBuf },
+}
+
+impl InputError {
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::FileRead { .. } => "file_read_error",
+            Self::Decode { .. } => "decode_error",
+        }
+    }
+
+    pub fn message(&self) -> String {
+        match self {
+            Self::FileRead { path, source } => {
+                format!("Failed to read file '{}': {}", path.display(), source)
+            }
+            Self::Decode { path } => {
+                format!("Failed to decode file '{}' as UTF-8", path.display())
+            }
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct Document {
+    source: String,
+    lines: Vec<LineRange>,
+}
+
+impl Document {
+    pub fn read(path: impl Into<PathBuf>) -> Result<Self, InputError> {
+        let path = path.into();
+        let bytes = fs::read(&path).map_err(|source| InputError::FileRead {
+            path: path.clone(),
+            source,
+        })?;
+
+        Self::from_bytes(path, &bytes)
+    }
+
+    pub fn from_bytes(path: impl Into<PathBuf>, bytes: &[u8]) -> Result<Self, InputError> {
+        let path = path.into();
+        let source =
+            String::from_utf8(bytes.to_vec()).map_err(|_| InputError::Decode { path: path.clone() })?;
+        let source = source.strip_prefix('\u{feff}').unwrap_or(&source).to_owned();
+
+        Ok(Self {
+            lines: index_lines(&source),
+            source,
+        })
+    }
+
+    pub fn source(&self) -> &str {
+        &self.source
+    }
+
+    pub fn line_count(&self) -> usize {
+        self.lines.len()
+    }
+
+    pub fn line(&self, line_number: usize) -> Option<&str> {
+        let range = self.line_range(line_number)?;
+        Some(&self.source[range.content_start..range.content_end])
+    }
+
+    pub fn slice_lines(&self, start_line: usize, end_line: usize) -> Option<&str> {
+        if start_line == 0 || start_line > end_line {
+            return None;
+        }
+
+        let start = self.line_range(start_line)?.content_start;
+        let end = self.line_range(end_line)?.full_end;
+        Some(&self.source[start..end])
+    }
+
+    pub fn line_start_offset(&self, line_number: usize) -> Option<usize> {
+        Some(self.line_range(line_number)?.content_start)
+    }
+
+    pub fn line_end_offset(&self, line_number: usize) -> Option<usize> {
+        Some(self.line_range(line_number)?.content_end)
+    }
+
+    fn line_range(&self, line_number: usize) -> Option<&LineRange> {
+        self.lines.get(line_number.checked_sub(1)?)
+    }
+}
+
+fn index_lines(source: &str) -> Vec<LineRange> {
+    let bytes = source.as_bytes();
+    let mut lines = Vec::new();
+    let mut line_start = 0;
+
+    for (idx, byte) in bytes.iter().enumerate() {
+        if *byte == b'\n' {
+            let content_end = if idx > line_start && bytes[idx - 1] == b'\r' {
+                idx - 1
+            } else {
+                idx
+            };
+
+            lines.push(LineRange {
+                content_start: line_start,
+                content_end,
+                full_end: idx + 1,
+            });
+            line_start = idx + 1;
+        }
+    }
+
+    if line_start < bytes.len() {
+        lines.push(LineRange {
+            content_start: line_start,
+            content_end: bytes.len(),
+            full_end: bytes.len(),
+        });
+    }
+
+    lines
+}
 
 #[derive(Debug, Parser)]
 #[command(
@@ -218,6 +351,7 @@ fn execute(cli: Cli) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     fn parse_ok(args: &[&str]) -> Cli {
         Cli::try_parse_from(args)
@@ -369,5 +503,70 @@ mod tests {
     fn missing_get_id_is_a_parse_error() {
         let result = Cli::try_parse_from(["mdq", "get", "README.md"]);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn document_strips_bom_and_indexes_lf_lines() {
+        let doc = Document::from_bytes("fixture.md", b"\xEF\xBB\xBF# Title\nline 2\n")
+            .expect("fixture should decode");
+
+        assert_eq!(doc.source(), "# Title\nline 2\n");
+        assert_eq!(doc.line_count(), 2);
+        assert_eq!(doc.line(1), Some("# Title"));
+        assert_eq!(doc.line(2), Some("line 2"));
+        assert_eq!(doc.slice_lines(1, 2), Some("# Title\nline 2\n"));
+        assert_eq!(doc.line_start_offset(1), Some(0));
+        assert_eq!(doc.line_end_offset(1), Some(7));
+        assert_eq!(doc.line_start_offset(2), Some(8));
+        assert_eq!(doc.line_end_offset(2), Some(14));
+    }
+
+    #[test]
+    fn document_treats_crlf_as_single_line_break() {
+        let doc = Document::from_bytes("fixture.md", b"# Title\r\nline 2\r\nlast line")
+            .expect("fixture should decode");
+
+        assert_eq!(doc.line_count(), 3);
+        assert_eq!(doc.line(1), Some("# Title"));
+        assert_eq!(doc.line(2), Some("line 2"));
+        assert_eq!(doc.line(3), Some("last line"));
+        assert_eq!(doc.slice_lines(1, 2), Some("# Title\r\nline 2\r\n"));
+        assert_eq!(doc.line_start_offset(2), Some(9));
+        assert_eq!(doc.line_end_offset(2), Some(15));
+    }
+
+    #[test]
+    fn document_reports_decode_errors() {
+        let err = Document::from_bytes("fixture.md", &[0xff, 0xfe]).expect_err("should fail decode");
+
+        assert_eq!(err.code(), "decode_error");
+        assert_eq!(err.message(), "Failed to decode file 'fixture.md' as UTF-8");
+    }
+
+    #[test]
+    fn document_reads_files_and_reports_read_errors() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time should move forward")
+            .as_nanos();
+        let base = std::env::temp_dir().join(format!("mdq-input-test-{unique}"));
+        fs::create_dir_all(&base).expect("temp dir should be created");
+
+        let file_path = base.join("fixture.md");
+        fs::write(&file_path, "# Title\r\nBody\n").expect("fixture should be written");
+
+        let doc = Document::read(&file_path).expect("fixture should load");
+        assert_eq!(doc.line_count(), 2);
+        assert_eq!(doc.slice_lines(1, 2), Some("# Title\r\nBody\n"));
+
+        let missing = base.join("missing.md");
+        let err = Document::read(&missing).expect_err("missing file should fail");
+        assert_eq!(err.code(), "file_read_error");
+        assert!(
+            err.message()
+                .starts_with(&format!("Failed to read file '{}':", missing.display()))
+        );
+
+        fs::remove_dir_all(&base).expect("temp dir should be removed");
     }
 }
