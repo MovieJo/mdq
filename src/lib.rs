@@ -51,6 +51,23 @@ pub struct Document {
     lines: Vec<LineRange>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum HeadingKind {
+    Atx,
+    Setext,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Heading {
+    pub kind: HeadingKind,
+    pub level: u8,
+    pub title: String,
+    pub start_line: usize,
+    pub end_line: usize,
+    pub start_offset: usize,
+    pub end_offset: usize,
+}
+
 impl Document {
     pub fn read(path: impl Into<PathBuf>) -> Result<Self, InputError> {
         let path = path.into();
@@ -105,6 +122,10 @@ impl Document {
         Some(self.line_range(line_number)?.content_end)
     }
 
+    pub fn headings(&self) -> Vec<Heading> {
+        parse_headings(self)
+    }
+
     fn line_range(&self, line_number: usize) -> Option<&LineRange> {
         self.lines.get(line_number.checked_sub(1)?)
     }
@@ -141,6 +162,172 @@ fn index_lines(source: &str) -> Vec<LineRange> {
     }
 
     lines
+}
+
+fn parse_headings(document: &Document) -> Vec<Heading> {
+    let mut headings = Vec::new();
+    let mut line_number = 1;
+
+    while line_number <= document.line_count() {
+        let line = document
+            .line(line_number)
+            .expect("line_number should always be valid while scanning headings");
+
+        if let Some((level, title)) = parse_atx_heading(line) {
+            headings.push(Heading {
+                kind: HeadingKind::Atx,
+                level,
+                title,
+                start_line: line_number,
+                end_line: line_number,
+                start_offset: document
+                    .line_start_offset(line_number)
+                    .expect("heading line should have a start offset"),
+                end_offset: document
+                    .line_end_offset(line_number)
+                    .expect("heading line should have an end offset"),
+            });
+            line_number += 1;
+            continue;
+        }
+
+        if line_number < document.line_count() {
+            let next_line = document
+                .line(line_number + 1)
+                .expect("next line should exist while checking setext headings");
+            if let Some(level) = parse_setext_underline(next_line) {
+                if is_setext_heading_text(line) {
+                    headings.push(Heading {
+                        kind: HeadingKind::Setext,
+                        level,
+                        title: line.trim().to_owned(),
+                        start_line: line_number,
+                        end_line: line_number + 1,
+                        start_offset: document
+                            .line_start_offset(line_number)
+                            .expect("setext heading should have a start offset"),
+                        end_offset: document
+                            .line_end_offset(line_number + 1)
+                            .expect("setext heading should have an end offset"),
+                    });
+                    line_number += 2;
+                    continue;
+                }
+            }
+        }
+
+        line_number += 1;
+    }
+
+    headings
+}
+
+fn parse_atx_heading(line: &str) -> Option<(u8, String)> {
+    let indent = line.chars().take_while(|ch| *ch == ' ').count();
+    if indent > 3 {
+        return None;
+    }
+
+    let trimmed = &line[indent..];
+    let marker_len = trimmed.chars().take_while(|ch| *ch == '#').count();
+    if marker_len == 0 || marker_len > 6 {
+        return None;
+    }
+
+    let rest = &trimmed[marker_len..];
+    if !rest.is_empty() && !matches!(rest.as_bytes()[0], b' ' | b'\t') {
+        return None;
+    }
+
+    let content = rest.trim();
+    let title = strip_atx_closing_sequence(content);
+    Some((marker_len as u8, title.to_owned()))
+}
+
+fn strip_atx_closing_sequence(content: &str) -> &str {
+    let trimmed = content.trim_end();
+    let hash_count = trimmed
+        .chars()
+        .rev()
+        .take_while(|ch| *ch == '#')
+        .count();
+
+    if hash_count == 0 {
+        return trimmed;
+    }
+
+    let without_hashes = &trimmed[..trimmed.len() - hash_count];
+    if without_hashes.ends_with([' ', '\t']) {
+        without_hashes.trim_end()
+    } else {
+        trimmed
+    }
+}
+
+fn parse_setext_underline(line: &str) -> Option<u8> {
+    let indent = line.chars().take_while(|ch| *ch == ' ').count();
+    if indent > 3 {
+        return None;
+    }
+
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    if trimmed.chars().all(|ch| ch == '=') {
+        return Some(1);
+    }
+
+    if trimmed.chars().all(|ch| ch == '-') {
+        return Some(2);
+    }
+
+    None
+}
+
+fn is_setext_heading_text(line: &str) -> bool {
+    if line.trim().is_empty() {
+        return false;
+    }
+
+    let indent = line.chars().take_while(|ch| *ch == ' ').count();
+    if indent > 3 {
+        return false;
+    }
+
+    let trimmed = line.trim_start();
+    if trimmed.starts_with('>') {
+        return false;
+    }
+    if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
+        return false;
+    }
+    if parse_atx_heading(line).is_some() {
+        return false;
+    }
+    if matches_list_marker(trimmed) {
+        return false;
+    }
+
+    true
+}
+
+fn matches_list_marker(line: &str) -> bool {
+    if line.starts_with("- ") || line.starts_with("* ") || line.starts_with("+ ") {
+        return true;
+    }
+
+    let mut digits = 0usize;
+    for ch in line.chars() {
+        if ch.is_ascii_digit() {
+            digits += 1;
+            continue;
+        }
+        return digits > 0 && ch == '.' && line[digits + 1..].starts_with(' ');
+    }
+
+    false
 }
 
 #[derive(Debug, Parser)]
@@ -568,5 +755,82 @@ mod tests {
         );
 
         fs::remove_dir_all(&base).expect("temp dir should be removed");
+    }
+
+    #[test]
+    fn document_parses_atx_headings_with_source_positions() {
+        let doc = Document::from_bytes(
+            "fixture.md",
+            b"# Title\nIntro\n### Deep Dive ###\nBody\n####### not a heading\n",
+        )
+        .expect("fixture should decode");
+
+        assert_eq!(
+            doc.headings(),
+            vec![
+                Heading {
+                    kind: HeadingKind::Atx,
+                    level: 1,
+                    title: "Title".to_owned(),
+                    start_line: 1,
+                    end_line: 1,
+                    start_offset: 0,
+                    end_offset: 7,
+                },
+                Heading {
+                    kind: HeadingKind::Atx,
+                    level: 3,
+                    title: "Deep Dive".to_owned(),
+                    start_line: 3,
+                    end_line: 3,
+                    start_offset: 14,
+                    end_offset: 31,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn document_parses_setext_headings_with_source_positions() {
+        let doc = Document::from_bytes(
+            "fixture.md",
+            b"Title\n=====\n\nSubtitle\n-----\nParagraph\n",
+        )
+        .expect("fixture should decode");
+
+        assert_eq!(
+            doc.headings(),
+            vec![
+                Heading {
+                    kind: HeadingKind::Setext,
+                    level: 1,
+                    title: "Title".to_owned(),
+                    start_line: 1,
+                    end_line: 2,
+                    start_offset: 0,
+                    end_offset: 11,
+                },
+                Heading {
+                    kind: HeadingKind::Setext,
+                    level: 2,
+                    title: "Subtitle".to_owned(),
+                    start_line: 4,
+                    end_line: 5,
+                    start_offset: 13,
+                    end_offset: 27,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn document_rejects_common_non_heading_setext_candidates() {
+        let doc = Document::from_bytes(
+            "fixture.md",
+            b"> quoted\n-----\n- list item\n-----\n    indented\n-----\n",
+        )
+        .expect("fixture should decode");
+
+        assert!(doc.headings().is_empty());
     }
 }
