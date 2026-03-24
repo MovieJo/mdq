@@ -56,14 +56,22 @@ fn section_index_keeps_preamble_and_empty_setext_sections_in_fixture_corpus() {
         index.by_id("s1-1").map(|section| section.title.as_str()),
         Some("Empty Section")
     );
-    assert_eq!(index.by_id("s1-1").map(|section| section.start_line), Some(9));
-    assert_eq!(index.by_id("s1-1").map(|section| section.end_line), Some(11));
+    assert_eq!(
+        index.by_id("s1-1").map(|section| section.start_line),
+        Some(9)
+    );
+    assert_eq!(
+        index.by_id("s1-1").map(|section| section.end_line),
+        Some(11)
+    );
     assert_eq!(
         index.by_id("s2-1").map(|section| section.title.as_str()),
         Some("Child Section")
     );
     assert_eq!(
-        index.by_id("s2-1").map(|section| section.parent_id.as_str()),
+        index
+            .by_id("s2-1")
+            .map(|section| section.parent_id.as_str()),
         Some("s2")
     );
 }
