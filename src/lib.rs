@@ -68,9 +68,33 @@ fn execute<W: Write>(cli: Cli, stdout: &mut W) -> Result<(), AppError> {
         }
         Commands::Get(args) => {
             let document = Document::read(&args.file)?;
-            if document.section_index().by_id(&args.id).is_none() {
-                return Err(AppError::SectionNotFound { id: args.id });
+            let sections = document.section_index();
+            let section = sections
+                .by_id(&args.id)
+                .ok_or_else(|| AppError::SectionNotFound {
+                    id: args.id.clone(),
+                })?;
+            let content = get_content(
+                &document,
+                section.start_line,
+                section.end_line,
+                args.max_lines,
+            )
+            .expect("validated section range should always produce content");
+
+            match args.format {
+                GetFormat::Text => {
+                    render_get_text(stdout, &document, &content, args.with_line_numbers)?
+                }
+                GetFormat::Json => render_get_json(
+                    stdout,
+                    &args,
+                    section.start_line,
+                    section.end_line,
+                    &content,
+                )?,
             }
+
             Ok(())
         }
         Commands::Find(args) => {
@@ -85,6 +109,89 @@ fn execute<W: Write>(cli: Cli, stdout: &mut W) -> Result<(), AppError> {
             Ok(())
         }
     }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct GetContent {
+    start_line: usize,
+    end_line: usize,
+    truncated: bool,
+    content: String,
+}
+
+fn get_content(
+    document: &Document,
+    start_line: usize,
+    end_line: usize,
+    max_lines: Option<usize>,
+) -> Option<GetContent> {
+    let extracted_end = match max_lines {
+        Some(limit) => start_line + limit.saturating_sub(1),
+        None => end_line,
+    }
+    .min(end_line);
+    let content = document.slice_lines(start_line, extracted_end)?;
+
+    Some(GetContent {
+        start_line,
+        end_line,
+        truncated: extracted_end < end_line,
+        content: content.to_owned(),
+    })
+}
+
+fn render_get_text<W: Write>(
+    stdout: &mut W,
+    document: &Document,
+    content: &GetContent,
+    with_line_numbers: bool,
+) -> Result<(), AppError> {
+    if !with_line_numbers {
+        write!(stdout, "{}", content.content).map_err(io_error)?;
+        return Ok(());
+    }
+
+    for line_number in content.start_line..=content.start_line + content_line_count(content) - 1 {
+        let line = document
+            .line(line_number)
+            .expect("line number should remain valid while rendering section");
+        let slice = document
+            .slice_lines(line_number, line_number)
+            .expect("line number should remain valid while rendering section");
+
+        write!(stdout, "L{line_number}: {line}").map_err(io_error)?;
+        if slice.ends_with('\n') {
+            writeln!(stdout).map_err(io_error)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn render_get_json<W: Write>(
+    stdout: &mut W,
+    args: &GetArgs,
+    start_line: usize,
+    end_line: usize,
+    content: &GetContent,
+) -> Result<(), AppError> {
+    writeln!(
+        stdout,
+        "{{\"command\":\"get\",\"file\":\"{}\",\"format\":\"json\",\"id\":\"{}\",\"start_line\":{},\"end_line\":{},\"truncated\":{},\"content\":\"{}\"}}",
+        escape_json_string(&args.file.display().to_string()),
+        escape_json_string(&args.id),
+        start_line,
+        end_line,
+        content.truncated,
+        escape_json_string(&content.content),
+    )
+    .map_err(io_error)?;
+
+    Ok(())
+}
+
+fn content_line_count(content: &GetContent) -> usize {
+    content.content.lines().count().max(1)
 }
 
 fn cli_error_format(cli: &Cli) -> ErrorFormat {
