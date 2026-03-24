@@ -64,7 +64,10 @@ fn execute<W: Write>(cli: Cli, stdout: &mut W) -> Result<(), AppError> {
     match cli.command {
         Commands::Tree(args) => {
             let document = Document::read(&args.file)?;
-            render_tree_annotated_md(stdout, &document, &args)?;
+            match args.format {
+                TreeFormat::AnnotatedMd => render_tree_annotated_md(stdout, &document, &args)?,
+                TreeFormat::Json => render_tree_json(stdout, &document, &args)?,
+            }
             Ok(())
         }
         Commands::Get(args) => {
@@ -117,17 +120,10 @@ fn render_tree_annotated_md<W: Write>(
     document: &Document,
     args: &TreeArgs,
 ) -> Result<(), AppError> {
-    let sections = document.section_index();
+    let sections = filtered_tree_sections(document, args);
     let mut printed = false;
 
-    for section in sections.sections() {
-        if args
-            .max_depth
-            .is_some_and(|max_depth| section.level > max_depth)
-        {
-            continue;
-        }
-
+    for section in sections {
         if printed {
             writeln!(stdout).map_err(io_error)?;
         }
@@ -153,6 +149,70 @@ fn render_tree_annotated_md<W: Write>(
     }
 
     Ok(())
+}
+
+fn render_tree_json<W: Write>(
+    stdout: &mut W,
+    document: &Document,
+    args: &TreeArgs,
+) -> Result<(), AppError> {
+    let sections = filtered_tree_sections(document, args);
+
+    write!(
+        stdout,
+        "{{\"command\":\"tree\",\"file\":\"{}\",\"format\":\"json\",\"sections\":[",
+        escape_json_string(&args.file.display().to_string()),
+    )
+    .map_err(io_error)?;
+
+    for (index, section) in sections.iter().enumerate() {
+        if index > 0 {
+            write!(stdout, ",").map_err(io_error)?;
+        }
+
+        write!(
+            stdout,
+            "{{\"id\":\"{}\",\"parent_id\":\"{}\",\"level\":{},\"title\":\"{}\",\"start_line\":{},\"end_line\":{}",
+            escape_json_string(&section.id),
+            escape_json_string(&section.parent_id),
+            section.level,
+            escape_json_string(&section.title),
+            section.start_line,
+            section.end_line,
+        )
+        .map_err(io_error)?;
+
+        if !args.no_summary {
+            if let Some(summary) = section.summary_block(document) {
+                write!(
+                    stdout,
+                    ",\"summary\":{{\"tag\":\"{}\",\"text\":\"{}\"}}",
+                    summary.tag(),
+                    escape_json_string(&summary.payload()),
+                )
+                .map_err(io_error)?;
+            }
+        }
+
+        write!(stdout, "}}").map_err(io_error)?;
+    }
+
+    writeln!(stdout, "]}}").map_err(io_error)?;
+    Ok(())
+}
+
+fn filtered_tree_sections(document: &Document, args: &TreeArgs) -> Vec<Section> {
+    document
+        .section_index()
+        .sections()
+        .iter()
+        .filter(|section| {
+            !args
+                .max_depth
+                .is_some_and(|max_depth| section.level > max_depth)
+        })
+        .cloned()
+        .collect()
 }
 
 #[derive(Debug, Eq, PartialEq)]
