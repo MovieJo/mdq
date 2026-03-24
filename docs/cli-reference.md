@@ -6,10 +6,10 @@ This document defines the command-line contract for the MVP commands.
 
 ## 1. `mdq tree`
 
-### Usage
+### Help Usage
 
 ```text
-mdq tree <file> [--format annotated-md|json] [--max-depth N] [--no-summary]
+mdq tree [OPTIONS] <FILE>
 ```
 
 ### Text Output
@@ -20,14 +20,20 @@ Default text output uses the annotated Markdown format defined in `docs/format-a
 
 JSON output uses the schema defined in `docs/json-output-v1.md`.
 
+### Options
+
+- `--format <FORMAT>`: output format (`annotated-md` or `json`)
+- `--max-depth <N>`: maximum heading depth to print
+- `--no-summary`: suppress summary lines
+
 ---
 
 ## 2. `mdq get`
 
-### Usage
+### Help Usage
 
 ```text
-mdq get <file> --id <section_id> [--format text|json] [--max-lines N] [--with-line-numbers]
+mdq get [OPTIONS] --id <SECTION_ID> <FILE>
 ```
 
 ### Text Output
@@ -47,14 +53,22 @@ L20: | id | title |
 
 JSON output uses the schema defined in `docs/json-output-v1.md`.
 
+### Options
+
+- `--id <SECTION_ID>`: section id to extract
+- `--format <FORMAT>`: output format (`text` or `json`)
+- `--max-lines <N>`: limit emitted lines after extraction
+- `--with-line-numbers`: prefix text output with original file line numbers
+- `--with-line-numbers` is valid only with `--format text`
+
 ---
 
 ## 3. `mdq find`
 
-### Usage
+### Help Usage
 
 ```text
-mdq find <file> <query> [--format text|json] [--regex] [--case-sensitive] [--max-matches N]
+mdq find [OPTIONS] <FILE> <QUERY>
 ```
 
 ### Text Output
@@ -83,6 +97,13 @@ L14 [s1-1] echo "hello"
 
 JSON output uses the schema defined in `docs/json-output-v1.md`.
 
+### Options
+
+- `--format <FORMAT>`: output format (`text` or `json`)
+- `--regex`: interpret the query as a regular expression
+- `--case-sensitive`: match with ASCII case sensitivity
+- `--max-matches <N>`: stop after emitting `N` matching lines (default: `200`)
+
 ---
 
 ## 4. Exit Codes
@@ -93,3 +114,20 @@ JSON output uses the schema defined in `docs/json-output-v1.md`.
 - `3`: file read or decode error
 - `4`: section id not found (`get` only)
 
+---
+
+## 5. Installation and Verification
+
+Install from the repository root:
+
+```sh
+cargo install --path .
+```
+
+Run without installing:
+
+```sh
+cargo run -- --help
+```
+
+For release validation steps, see `docs/release-checklist.md`.

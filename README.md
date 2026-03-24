@@ -30,6 +30,14 @@ Agents usually do not need everything at once. They need:
 
 ## Quickstart
 
+### 0. Run from source
+
+Without installing globally:
+
+```sh
+cargo run -- tree README.md
+```
+
 ### 1. Print an annotated outline
 
 ```sh
@@ -84,6 +92,21 @@ L14 [s1-1] echo "hello"
 - `mdq find <file> <query>`: search mapped to section ids
 
 See `docs/cli-reference.md`.
+
+---
+
+## Command Help
+
+Use the built-in help to confirm the available flags:
+
+```sh
+mdq --help
+mdq tree --help
+mdq get --help
+mdq find --help
+```
+
+If you are running from source instead of an installed binary, prefix each command with `cargo run --`.
 
 ---
 
@@ -152,6 +175,12 @@ Important:
 cargo install --path .
 ```
 
+Verify the installed binary:
+
+```sh
+mdq --help
+```
+
 Once published:
 
 ```sh
@@ -166,6 +195,7 @@ cargo install mdq
 - Format: `docs/format-annotated-md-v1.md`
 - JSON: `docs/json-output-v1.md`
 - CLI: `docs/cli-reference.md`
+- Release: `docs/release-checklist.md`
 - Testing: `docs/testing.md`
 
 ---
