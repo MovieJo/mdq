@@ -3,6 +3,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::{Document, Heading, HeadingKind};
 
+use super::fixtures::fixture_bytes;
+
 #[test]
 fn document_strips_bom_and_indexes_lf_lines() {
     let doc = Document::from_bytes("fixture.md", b"\xEF\xBB\xBF# Title\nline 2\n")
@@ -102,11 +104,8 @@ fn document_parses_atx_headings_with_source_positions() {
 
 #[test]
 fn document_parses_setext_headings_with_source_positions() {
-    let doc = Document::from_bytes(
-        "fixture.md",
-        b"Title\n=====\n\nSubtitle\n-----\nParagraph\n",
-    )
-    .expect("fixture should decode");
+    let bytes = fixture_bytes("headings/setext-preamble-empty.md");
+    let doc = Document::from_bytes("fixture.md", &bytes).expect("fixture should decode");
 
     assert_eq!(
         doc.headings(),
@@ -115,19 +114,37 @@ fn document_parses_setext_headings_with_source_positions() {
                 kind: HeadingKind::Setext,
                 level: 1,
                 title: "Title".to_owned(),
-                start_line: 1,
-                end_line: 2,
-                start_offset: 0,
-                end_offset: 11,
+                start_line: 4,
+                end_line: 5,
+                start_offset: 31,
+                end_offset: 42,
             },
             Heading {
                 kind: HeadingKind::Setext,
                 level: 2,
-                title: "Subtitle".to_owned(),
-                start_line: 4,
-                end_line: 5,
-                start_offset: 13,
-                end_offset: 27,
+                title: "Empty Section".to_owned(),
+                start_line: 9,
+                end_line: 10,
+                start_offset: 67,
+                end_offset: 94,
+            },
+            Heading {
+                kind: HeadingKind::Atx,
+                level: 1,
+                title: "Parent Only".to_owned(),
+                start_line: 12,
+                end_line: 12,
+                start_offset: 96,
+                end_offset: 109,
+            },
+            Heading {
+                kind: HeadingKind::Atx,
+                level: 2,
+                title: "Child Section".to_owned(),
+                start_line: 13,
+                end_line: 13,
+                start_offset: 110,
+                end_offset: 126,
             },
         ]
     );
