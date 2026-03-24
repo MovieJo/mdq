@@ -1,0 +1,1 @@
+{"command":"find","file":"{{FILE}}","format":"json","query":"^Install again$","regex":true,"case_sensitive":true,"matches":[{"line":5,"section_id":"s1-1","text":"Install again"}]}

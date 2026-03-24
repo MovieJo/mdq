@@ -1,6 +1,6 @@
 use crate::{run_with_io, EXIT_SUCCESS};
 
-use super::fixtures::TempFixture;
+use super::fixtures::{expected_output, expected_output_with_file, TempFixture};
 
 #[test]
 fn tree_annotated_md_renders_headings_ranges_and_summaries() {
@@ -25,7 +25,7 @@ fn tree_annotated_md_renders_headings_ranges_and_summaries() {
     );
     assert_eq!(
         String::from_utf8(stdout).expect("stdout should be utf-8"),
-        "# [s1 L1-L3] Paragraph\nP: Plain paragraph summary text.\n\n# [s2 L4-L7] Blockquote\nQ: quoted line one quoted line two\n\n# [s3 L8-L13] List\nL: first item; second item; third item\n\n# [s4 L14-L20] Code\nC: rust, 3 lines\n\n# [s5 L21-L26] Table\nT: name | value (2 cols x 2 rows)\n\n# [s6 L27-L28] Image\nI: alt=\"diagram\", src=path\n"
+        expected_output("golden/tree-annotated-md-first-block-kinds.out")
     );
 }
 
@@ -84,10 +84,7 @@ fn tree_json_renders_sections_and_summaries() {
     );
     assert_eq!(
         String::from_utf8(stdout).expect("stdout should be utf-8"),
-        format!(
-            "{{\"command\":\"tree\",\"file\":\"{}\",\"format\":\"json\",\"sections\":[{{\"id\":\"s1\",\"parent_id\":\"root\",\"level\":1,\"title\":\"Paragraph\",\"start_line\":1,\"end_line\":3,\"summary\":{{\"tag\":\"P\",\"text\":\"Plain paragraph summary text.\"}}}},{{\"id\":\"s2\",\"parent_id\":\"root\",\"level\":1,\"title\":\"Blockquote\",\"start_line\":4,\"end_line\":7,\"summary\":{{\"tag\":\"Q\",\"text\":\"quoted line one quoted line two\"}}}},{{\"id\":\"s3\",\"parent_id\":\"root\",\"level\":1,\"title\":\"List\",\"start_line\":8,\"end_line\":13,\"summary\":{{\"tag\":\"L\",\"text\":\"first item; second item; third item\"}}}},{{\"id\":\"s4\",\"parent_id\":\"root\",\"level\":1,\"title\":\"Code\",\"start_line\":14,\"end_line\":20,\"summary\":{{\"tag\":\"C\",\"text\":\"rust, 3 lines\"}}}},{{\"id\":\"s5\",\"parent_id\":\"root\",\"level\":1,\"title\":\"Table\",\"start_line\":21,\"end_line\":26,\"summary\":{{\"tag\":\"T\",\"text\":\"name | value (2 cols x 2 rows)\"}}}},{{\"id\":\"s6\",\"parent_id\":\"root\",\"level\":1,\"title\":\"Image\",\"start_line\":27,\"end_line\":28,\"summary\":{{\"tag\":\"I\",\"text\":\"alt=\\\"diagram\\\", src=path\"}}}}]}}\n",
-            fixture.path().display()
-        )
+        expected_output_with_file("snapshots/tree-json-first-block-kinds.json", fixture.path())
     );
 }
 
