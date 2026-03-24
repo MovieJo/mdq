@@ -8,3 +8,4 @@ repository = "https://github.com/MovieJo/mdq"
 
 [dependencies]
 clap = { version = "=4.4.18", features = ["derive"] }
+regex = "=1.12.2"
