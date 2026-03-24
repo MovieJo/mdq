@@ -455,11 +455,10 @@ fn code_payload(lines: &[String]) -> String {
         .expect("code summary should always contain an opening fence");
     let (fence_char, fence_len) =
         parse_fence(opening_line).expect("code summary should start with a fence");
-    let info = opening_line
-        .trim_start()
-        .trim_start_matches(fence_char)
-        .trim_start_matches(fence_char)
-        .trim_start_matches(fence_char)
+    let trimmed = opening_line.trim_start();
+    let info = trimmed
+        .get(fence_len..)
+        .expect("fence length should remain within the opening fence line")
         .trim();
     let language = info.split_whitespace().next().unwrap_or("text");
     let has_closing_fence = lines

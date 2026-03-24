@@ -78,3 +78,29 @@ fn summary_block_stops_before_first_nested_heading() {
     assert_eq!(block.start_line, 7);
     assert_eq!(block.end_line, 7);
 }
+
+#[test]
+fn code_summary_uses_full_opening_fence_length_when_parsing_language() {
+    let document = Document::from_bytes(
+        "fixture.md",
+        b"# Backticks\n````rust extra\nprintln!(\"hi\");\n````\n\n# Tildes\n~~~~python\nprint('hi')\n~~~~\n",
+    )
+    .expect("fixture should decode");
+    let sections = document.section_index();
+
+    let backticks = sections
+        .by_id("s1")
+        .expect("section should exist")
+        .summary_block(&document)
+        .expect("section should have a summary block");
+    assert_eq!(backticks.kind, SummaryKind::Code);
+    assert_eq!(backticks.payload(), "rust, 1 lines");
+
+    let tildes = sections
+        .by_id("s2")
+        .expect("section should exist")
+        .summary_block(&document)
+        .expect("section should have a summary block");
+    assert_eq!(tildes.kind, SummaryKind::Code);
+    assert_eq!(tildes.payload(), "python, 1 lines");
+}
