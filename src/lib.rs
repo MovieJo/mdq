@@ -63,7 +63,8 @@ where
 fn execute<W: Write>(cli: Cli, stdout: &mut W) -> Result<(), AppError> {
     match cli.command {
         Commands::Tree(args) => {
-            let _document = Document::read(&args.file)?;
+            let document = Document::read(&args.file)?;
+            render_tree_annotated_md(stdout, &document, &args)?;
             Ok(())
         }
         Commands::Get(args) => {
@@ -109,6 +110,49 @@ fn execute<W: Write>(cli: Cli, stdout: &mut W) -> Result<(), AppError> {
             Ok(())
         }
     }
+}
+
+fn render_tree_annotated_md<W: Write>(
+    stdout: &mut W,
+    document: &Document,
+    args: &TreeArgs,
+) -> Result<(), AppError> {
+    let sections = document.section_index();
+    let mut printed = false;
+
+    for section in sections.sections() {
+        if args
+            .max_depth
+            .is_some_and(|max_depth| section.level > max_depth)
+        {
+            continue;
+        }
+
+        if printed {
+            writeln!(stdout).map_err(io_error)?;
+        }
+
+        writeln!(
+            stdout,
+            "{} [{} L{}-L{}] {}",
+            "#".repeat(section.level.into()),
+            section.id,
+            section.start_line,
+            section.end_line,
+            section.title,
+        )
+        .map_err(io_error)?;
+
+        if !args.no_summary {
+            if let Some(summary) = section.summary_block(document) {
+                writeln!(stdout, "{}: {}", summary.tag(), summary.payload()).map_err(io_error)?;
+            }
+        }
+
+        printed = true;
+    }
+
+    Ok(())
 }
 
 #[derive(Debug, Eq, PartialEq)]
