@@ -154,6 +154,36 @@ impl Section {
     }
 }
 
+impl SummaryBlock {
+    pub fn tag(&self) -> &'static str {
+        match self.kind {
+            SummaryKind::Paragraph => "P",
+            SummaryKind::Blockquote => "Q",
+            SummaryKind::List => "L",
+            SummaryKind::Code => "C",
+            SummaryKind::Table => "T",
+            SummaryKind::Image => "I",
+        }
+    }
+
+    pub fn payload(&self) -> String {
+        match self.kind {
+            SummaryKind::Paragraph => normalize_lines(&self.lines),
+            SummaryKind::Blockquote => normalize_lines(
+                &self
+                    .lines
+                    .iter()
+                    .map(|line| strip_blockquote_marker(line))
+                    .collect::<Vec<_>>(),
+            ),
+            SummaryKind::List => list_payload(&self.lines),
+            SummaryKind::Code => code_payload(&self.lines),
+            SummaryKind::Table => table_payload(&self.lines),
+            SummaryKind::Image => image_payload(&self.lines),
+        }
+    }
+}
+
 fn assign_section_ids(sections: &mut [Section], child_indices: &[usize], prefix: &str) {
     for (position, &child_idx) in child_indices.iter().enumerate() {
         let id = if prefix == "s" {
@@ -346,6 +376,150 @@ fn collect_lines(document: &Document, start_line: usize, end_line: usize) -> Vec
                 .to_owned()
         })
         .collect()
+}
+
+fn normalize_lines(lines: &[String]) -> String {
+    lines
+        .iter()
+        .flat_map(|line| line.split_ascii_whitespace())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn strip_blockquote_marker(line: &str) -> String {
+    let indent = line.chars().take_while(|ch| *ch == ' ').count().min(3);
+    let trimmed = &line[indent..];
+    let without_marker = trimmed.strip_prefix('>').unwrap_or(trimmed);
+    without_marker.trim_start().to_owned()
+}
+
+fn list_payload(lines: &[String]) -> String {
+    let base_indent = lines
+        .iter()
+        .find_map(|line| list_marker_indent(line))
+        .unwrap_or(0);
+
+    lines
+        .iter()
+        .filter_map(|line| top_level_list_item_text(line, base_indent))
+        .take(3)
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+fn top_level_list_item_text(line: &str, base_indent: usize) -> Option<String> {
+    let indent = list_marker_indent(line)?;
+    if indent != base_indent {
+        return None;
+    }
+
+    let trimmed = &line[indent..];
+    strip_list_marker(trimmed).map(normalize_line)
+}
+
+fn list_marker_indent(line: &str) -> Option<usize> {
+    let indent = line.chars().take_while(|ch| *ch == ' ').count();
+    if indent > 3 {
+        return None;
+    }
+
+    let trimmed = &line[indent..];
+    matches_list_marker(trimmed).then_some(indent)
+}
+
+fn strip_list_marker(line: &str) -> Option<&str> {
+    if let Some(rest) = line
+        .strip_prefix("- ")
+        .or_else(|| line.strip_prefix("* "))
+        .or_else(|| line.strip_prefix("+ "))
+    {
+        return Some(rest);
+    }
+
+    let digit_count = line.chars().take_while(|ch| ch.is_ascii_digit()).count();
+    if digit_count == 0 {
+        return None;
+    }
+
+    let suffix = &line[digit_count..];
+    suffix.strip_prefix(". ")
+}
+
+fn normalize_line(line: &str) -> String {
+    line.split_ascii_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn code_payload(lines: &[String]) -> String {
+    let opening_line = lines
+        .first()
+        .expect("code summary should always contain an opening fence");
+    let (fence_char, fence_len) =
+        parse_fence(opening_line).expect("code summary should start with a fence");
+    let info = opening_line
+        .trim_start()
+        .trim_start_matches(fence_char)
+        .trim_start_matches(fence_char)
+        .trim_start_matches(fence_char)
+        .trim();
+    let language = info.split_whitespace().next().unwrap_or("text");
+    let has_closing_fence = lines
+        .last()
+        .map(|line| is_fence_closing_line(line, fence_char, fence_len))
+        .unwrap_or(false);
+    let content_line_count = if has_closing_fence {
+        lines.len().saturating_sub(2)
+    } else {
+        lines.len().saturating_sub(1)
+    };
+
+    format!("{language}, {content_line_count} lines")
+}
+
+fn table_payload(lines: &[String]) -> String {
+    let headers = lines
+        .first()
+        .map(|line| parse_table_cells(line).join(" | "))
+        .unwrap_or_default();
+    let column_count = lines
+        .first()
+        .map(|line| parse_table_cells(line).len())
+        .unwrap_or(0);
+    let row_count = lines.len().saturating_sub(2);
+
+    format!("{headers} ({column_count} cols x {row_count} rows)")
+}
+
+fn parse_table_cells(line: &str) -> Vec<String> {
+    line.trim()
+        .trim_matches('|')
+        .split('|')
+        .map(|cell| normalize_line(cell.trim()))
+        .collect()
+}
+
+fn image_payload(lines: &[String]) -> String {
+    let line = lines
+        .first()
+        .expect("image summary should always contain one line")
+        .trim_start();
+    let alt_end = line
+        .find("](")
+        .expect("image summary should contain alt text");
+    let src_end = line[alt_end + 2..]
+        .find(')')
+        .map(|idx| alt_end + 2 + idx)
+        .expect("image summary should contain a closing parenthesis");
+    let alt = &line[2..alt_end];
+    let src = &line[alt_end + 2..src_end];
+    let src_kind = if src.starts_with("data:") {
+        "data-uri"
+    } else if src.contains("://") {
+        "url"
+    } else {
+        "path"
+    };
+
+    format!("alt=\"{alt}\", src={src_kind}")
 }
 
 fn is_fenced_code_start(line: &str) -> bool {
