@@ -11,7 +11,7 @@ pub use crate::error::{
     AppError, ErrorFormat, InputError, UsageError, EXIT_FILE_ERROR, EXIT_INTERNAL_ERROR,
     EXIT_SECTION_NOT_FOUND, EXIT_SUCCESS, EXIT_USAGE_ERROR,
 };
-pub use crate::section::{Section, SectionIndex, ROOT_SECTION_ID};
+pub use crate::section::{Section, SectionIndex, SummaryBlock, SummaryKind, ROOT_SECTION_ID};
 
 use std::ffi::OsString;
 use std::io::{self, Write};

@@ -1,7 +1,8 @@
 mod cli;
 mod document;
 mod error;
-mod fixtures;
 mod find;
+mod fixtures;
 mod get;
 mod section;
+mod summary;
