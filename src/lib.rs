@@ -37,7 +37,10 @@ where
     O: Write,
     E: Write,
 {
-    match Cli::try_parse_from(args) {
+    let raw_args: Vec<OsString> = args.into_iter().map(Into::into).collect();
+    let requested_error_format = infer_error_format(&raw_args);
+
+    match Cli::try_parse_from(raw_args) {
         Ok(cli) => match cli.validated() {
             Ok(cli) => {
                 let error_format = cli_error_format(&cli);
@@ -46,17 +49,9 @@ where
                     Err(err) => handle_runtime_error(err, error_format, stdout, stderr),
                 }
             }
-            Err(err) => handle_usage_validation_error(err, stderr),
+            Err(err) => handle_usage_validation_error(err, requested_error_format, stdout, stderr),
         },
-        Err(err) => {
-            let kind = err.kind();
-            err.print().expect("failed to print clap output");
-            if matches!(kind, ErrorKind::DisplayHelp | ErrorKind::DisplayVersion) {
-                EXIT_SUCCESS
-            } else {
-                EXIT_USAGE_ERROR
-            }
-        }
+        Err(err) => handle_clap_error(err, requested_error_format, stdout, stderr),
     }
 }
 
@@ -315,7 +310,50 @@ fn cli_error_format(cli: &Cli) -> ErrorFormat {
     }
 }
 
-fn handle_usage_validation_error<E: Write>(err: UsageError, stderr: &mut E) -> i32 {
+fn infer_error_format(args: &[OsString]) -> ErrorFormat {
+    let Some(command_index) = args.iter().enumerate().skip(1).find_map(|(index, arg)| {
+        matches!(arg.to_string_lossy().as_ref(), "tree" | "get" | "find").then_some(index)
+    }) else {
+        return ErrorFormat::Text;
+    };
+
+    let mut args = args.iter().skip(command_index + 1);
+
+    while let Some(arg) = args.next() {
+        let arg = arg.to_string_lossy();
+
+        if let Some(value) = arg.strip_prefix("--format=") {
+            return parse_requested_error_format(value);
+        }
+
+        if arg == "--format" {
+            return args
+                .next()
+                .map(|value| parse_requested_error_format(&value.to_string_lossy()))
+                .unwrap_or(ErrorFormat::Text);
+        }
+    }
+
+    ErrorFormat::Text
+}
+
+fn parse_requested_error_format(value: &str) -> ErrorFormat {
+    match value {
+        "json" => ErrorFormat::Json,
+        _ => ErrorFormat::Text,
+    }
+}
+
+fn handle_usage_validation_error<O: Write, E: Write>(
+    err: UsageError,
+    format: ErrorFormat,
+    stdout: &mut O,
+    stderr: &mut E,
+) -> i32 {
+    if format == ErrorFormat::Json {
+        return handle_runtime_error(AppError::Usage(err), format, stdout, stderr);
+    }
+
     let mut command = Cli::command();
     write!(
         stderr,
@@ -326,6 +364,43 @@ fn handle_usage_validation_error<E: Write>(err: UsageError, stderr: &mut E) -> i
     )
     .expect("failed to print usage error");
     EXIT_USAGE_ERROR
+}
+
+fn handle_clap_error<O: Write, E: Write>(
+    err: clap::Error,
+    format: ErrorFormat,
+    stdout: &mut O,
+    stderr: &mut E,
+) -> i32 {
+    let kind = err.kind();
+
+    if matches!(kind, ErrorKind::DisplayHelp | ErrorKind::DisplayVersion) {
+        write!(stdout, "{}", err.render()).expect("failed to print clap output");
+        return EXIT_SUCCESS;
+    }
+
+    if format == ErrorFormat::Json {
+        let message = clap_error_message(&err);
+        return handle_runtime_error(
+            AppError::Usage(UsageError::new(message)),
+            format,
+            stdout,
+            stderr,
+        );
+    }
+
+    write!(stderr, "{}", err.render()).expect("failed to print clap output");
+    EXIT_USAGE_ERROR
+}
+
+fn clap_error_message(err: &clap::Error) -> String {
+    let rendered = err.to_string();
+    let first_block = rendered.split("\n\n").next().unwrap_or_default().trim();
+
+    first_block
+        .strip_prefix("error: ")
+        .unwrap_or(first_block)
+        .to_owned()
 }
 
 fn handle_runtime_error<O: Write, E: Write>(
