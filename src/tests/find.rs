@@ -1,6 +1,6 @@
 use crate::{run_with_io, EXIT_SUCCESS, EXIT_USAGE_ERROR};
 
-use super::fixtures::TempFixture;
+use super::fixtures::{expected_output, expected_output_with_file, TempFixture};
 
 #[test]
 fn find_text_searches_lines_maps_sections_and_limits_matches() {
@@ -28,7 +28,7 @@ fn find_text_searches_lines_maps_sections_and_limits_matches() {
     );
     assert_eq!(
         String::from_utf8(stdout).expect("stdout should be utf-8"),
-        "L1 [-] Preamble install note\nL3 [s1] install here\n"
+        expected_output("golden/find-text-install.out")
     );
 }
 
@@ -60,9 +60,9 @@ fn find_json_emits_root_matches_and_regex_case_rules() {
     );
     assert_eq!(
         String::from_utf8(stdout).expect("stdout should be utf-8"),
-        format!(
-            "{{\"command\":\"find\",\"file\":\"{}\",\"format\":\"json\",\"query\":\"^Install again$\",\"regex\":true,\"case_sensitive\":true,\"matches\":[{{\"line\":5,\"section_id\":\"s1-1\",\"text\":\"Install again\"}}]}}\n",
-            fixture.path().display()
+        expected_output_with_file(
+            "snapshots/find-json-regex-case-sensitive.json",
+            fixture.path(),
         )
     );
 }

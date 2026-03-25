@@ -12,6 +12,22 @@ pub(crate) fn fixture_bytes(relative: impl AsRef<Path>) -> Vec<u8> {
     fs::read(fixture_path(relative)).expect("fixture should be readable")
 }
 
+pub(crate) fn expected_output(relative: impl AsRef<Path>) -> String {
+    fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src/tests/expected")
+            .join(relative),
+    )
+    .expect("expected output should be readable")
+}
+
+pub(crate) fn expected_output_with_file(
+    relative: impl AsRef<Path>,
+    file_path: impl AsRef<Path>,
+) -> String {
+    expected_output(relative).replace("{{FILE}}", &file_path.as_ref().display().to_string())
+}
+
 pub(crate) struct TempFixture {
     path: PathBuf,
     base: PathBuf,
@@ -64,6 +80,25 @@ fn fixture_corpus_includes_required_contract_coverage() {
         assert!(
             fixture_path(relative).is_file(),
             "missing fixture corpus file: {relative}"
+        );
+    }
+
+    let expected = [
+        "golden/tree-annotated-md-first-block-kinds.out",
+        "golden/get-text-with-line-numbers.out",
+        "golden/find-text-install.out",
+        "snapshots/tree-json-first-block-kinds.json",
+        "snapshots/get-json-truncated-child.json",
+        "snapshots/find-json-regex-case-sensitive.json",
+    ];
+
+    for relative in expected {
+        assert!(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("src/tests/expected")
+                .join(relative)
+                .is_file(),
+            "missing expected output file: {relative}"
         );
     }
 }

@@ -64,3 +64,13 @@ For text output formats, golden files are recommended for:
 - `find` text output
 
 For JSON output, snapshot tests are recommended with deterministic field ordering.
+
+---
+
+## 4. MVP Acceptance Criteria Mapping
+
+- Acceptance criteria 1 and 2: `src/tests/tree.rs` golden and snapshot coverage for annotated tree output, ids, line ranges, and summaries
+- Acceptance criteria 3 and 4: `src/tests/tree.rs` snapshot coverage for JSON field ordering and section payload stability
+- Acceptance criteria 5: `src/tests/get.rs` exact-slice assertion plus golden and snapshot coverage for truncation and line-numbered output
+- Acceptance criteria 6: `src/tests/find.rs` golden and snapshot coverage for text mapping, JSON mapping, and regex/case-sensitive behavior
+- Acceptance criteria 7: `src/tests/error.rs` and `src/tests/get.rs` runtime error shape and exit-code assertions

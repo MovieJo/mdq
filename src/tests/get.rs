@@ -1,6 +1,6 @@
 use crate::{run_with_io, EXIT_SECTION_NOT_FOUND, EXIT_SUCCESS};
 
-use super::fixtures::TempFixture;
+use super::fixtures::{expected_output, expected_output_with_file, TempFixture};
 
 #[test]
 fn get_text_emits_exact_section_slice() {
@@ -59,7 +59,7 @@ fn get_text_supports_truncation_and_line_numbers() {
     );
     assert_eq!(
         String::from_utf8(stdout).expect("stdout should be utf-8"),
-        "L1: # Intro\nL2: line 1\nL3: ## Child\n"
+        expected_output("golden/get-text-with-line-numbers.out")
     );
 }
 
@@ -92,10 +92,7 @@ fn get_json_reports_section_bounds_and_truncation() {
     );
     assert_eq!(
         String::from_utf8(stdout).expect("stdout should be utf-8"),
-        format!(
-            "{{\"command\":\"get\",\"file\":\"{}\",\"format\":\"json\",\"id\":\"s1-1\",\"start_line\":3,\"end_line\":4,\"truncated\":true,\"content\":\"## Child\\n\"}}\n",
-            fixture.path().display()
-        )
+        expected_output_with_file("snapshots/get-json-truncated-child.json", fixture.path())
     );
 }
 

@@ -1,0 +1,17 @@
+# [s1 L1-L3] Paragraph
+P: Plain paragraph summary text.
+
+# [s2 L4-L7] Blockquote
+Q: quoted line one quoted line two
+
+# [s3 L8-L13] List
+L: first item; second item; third item
+
+# [s4 L14-L20] Code
+C: rust, 3 lines
+
+# [s5 L21-L26] Table
+T: name | value (2 cols x 2 rows)
+
+# [s6 L27-L28] Image
+I: alt="diagram", src=path
