@@ -94,3 +94,31 @@ fn find_invalid_regex_is_a_usage_error() {
     let stderr = String::from_utf8(stderr).expect("stderr should be utf-8");
     assert!(stderr.contains("regex parse error"));
 }
+
+#[test]
+fn find_literal_case_insensitive_search_matches_unicode_text() {
+    let fixture = TempFixture::new("edge/find-unicode.md");
+    let mut stdout = Vec::new();
+    let mut stderr = Vec::new();
+
+    let exit = run_with_io(
+        [
+            "mdq",
+            "find",
+            fixture.path().to_str().expect("temp path should be utf-8"),
+            "éclair",
+        ],
+        &mut stdout,
+        &mut stderr,
+    );
+
+    assert_eq!(exit, EXIT_SUCCESS);
+    assert_eq!(
+        String::from_utf8(stderr).expect("stderr should be utf-8"),
+        ""
+    );
+    assert_eq!(
+        String::from_utf8(stdout).expect("stdout should be utf-8"),
+        "L2 [s1] Éclair\n"
+    );
+}
