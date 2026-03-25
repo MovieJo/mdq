@@ -85,6 +85,7 @@ fn fixture_corpus_includes_required_contract_coverage() {
 
     let expected = [
         "golden/tree-annotated-md-first-block-kinds.out",
+        "golden/get-text-child-with-line-numbers.out",
         "golden/get-text-with-line-numbers.out",
         "golden/find-text-install.out",
         "snapshots/tree-json-first-block-kinds.json",
