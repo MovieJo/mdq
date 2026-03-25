@@ -8,7 +8,7 @@ use crate::error::UsageError;
 #[command(
     name = "mdq",
     version,
-    about = "Navigate Markdown files through tree, get, and find commands.",
+    about = "Agent-friendly Markdown navigation through tree, get, and find.",
     disable_help_subcommand = true
 )]
 pub struct Cli {
@@ -30,9 +30,9 @@ impl Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
-    /// Print an annotated section outline for a Markdown file.
+    /// Print an annotated outline for a Markdown file.
     Tree(TreeArgs),
-    /// Extract the exact Markdown slice for a section id.
+    /// Extract the exact Markdown slice for a section.
     Get(GetArgs),
     /// Search matching lines and map them to section ids.
     Find(FindArgs),
