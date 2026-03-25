@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 
 use crate::{Cli, Commands, FindFormat, GetFormat, TreeFormat};
 
@@ -139,4 +139,14 @@ fn find_command_uses_documented_default_max_matches() {
 fn missing_get_id_is_a_parse_error() {
     let result = Cli::try_parse_from(["mdq", "get", "README.md"]);
     assert!(result.is_err());
+}
+
+#[test]
+fn top_level_help_matches_documented_command_descriptions() {
+    let help = Cli::command().render_long_help().to_string();
+
+    assert!(help.contains("Agent-friendly Markdown navigation through tree, get, and find."));
+    assert!(help.contains("tree  Print an annotated outline for a Markdown file"));
+    assert!(help.contains("get   Extract the exact Markdown slice for a section"));
+    assert!(help.contains("find  Search matching lines and map them to section ids"));
 }
