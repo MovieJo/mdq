@@ -64,6 +64,66 @@ fn get_text_supports_truncation_and_line_numbers() {
 }
 
 #[test]
+fn get_text_preserves_original_line_numbers_for_child_sections() {
+    let fixture = TempFixture::new("edge/get-truncation.md");
+    let mut stdout = Vec::new();
+    let mut stderr = Vec::new();
+
+    let exit = run_with_io(
+        [
+            "mdq",
+            "get",
+            fixture.path().to_str().expect("temp path should be utf-8"),
+            "--id",
+            "s1-1",
+            "--with-line-numbers",
+        ],
+        &mut stdout,
+        &mut stderr,
+    );
+
+    assert_eq!(exit, EXIT_SUCCESS);
+    assert_eq!(
+        String::from_utf8(stderr).expect("stderr should be utf-8"),
+        ""
+    );
+    assert_eq!(
+        String::from_utf8(stdout).expect("stdout should be utf-8"),
+        expected_output("golden/get-text-child-with-line-numbers.out")
+    );
+}
+
+#[test]
+fn get_text_truncation_does_not_append_ellipsis() {
+    let fixture = TempFixture::new("edge/get-truncation.md");
+    let mut stdout = Vec::new();
+    let mut stderr = Vec::new();
+
+    let exit = run_with_io(
+        [
+            "mdq",
+            "get",
+            fixture.path().to_str().expect("temp path should be utf-8"),
+            "--id",
+            "s1",
+            "--max-lines",
+            "2",
+        ],
+        &mut stdout,
+        &mut stderr,
+    );
+
+    assert_eq!(exit, EXIT_SUCCESS);
+    assert_eq!(
+        String::from_utf8(stderr).expect("stderr should be utf-8"),
+        ""
+    );
+    let stdout = String::from_utf8(stdout).expect("stdout should be utf-8");
+    assert_eq!(stdout, "# Intro\nline 1\n");
+    assert!(!stdout.contains("..."));
+}
+
+#[test]
 fn get_json_reports_section_bounds_and_truncation() {
     let fixture = TempFixture::new("edge/get-truncation.md");
     let mut stdout = Vec::new();
