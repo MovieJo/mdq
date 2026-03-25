@@ -436,40 +436,43 @@ fn render_find_json<W: Write>(
 struct LineMatcher {
     query: String,
     case_sensitive: bool,
-    regex: Option<regex::Regex>,
+    matcher: Option<regex::Regex>,
 }
 
 impl LineMatcher {
     fn new(query: &str, regex: bool, case_sensitive: bool) -> Result<Self, AppError> {
-        let regex = if regex {
+        let matcher = if regex {
             Some(
                 RegexBuilder::new(query)
                     .case_insensitive(!case_sensitive)
                     .build()
                     .map_err(|err| AppError::Usage(UsageError::new(err.to_string())))?,
             )
-        } else {
+        } else if case_sensitive {
             None
+        } else {
+            Some(
+                RegexBuilder::new(&regex::escape(query))
+                    .case_insensitive(true)
+                    .build()
+                    .expect("escaped literal query should always compile"),
+            )
         };
 
         Ok(Self {
             query: query.to_owned(),
             case_sensitive,
-            regex,
+            matcher,
         })
     }
 
     fn is_match(&self, line: &str) -> bool {
-        if let Some(regex) = &self.regex {
+        if let Some(regex) = &self.matcher {
             return regex.is_match(line);
         }
 
-        if self.case_sensitive {
-            line.contains(&self.query)
-        } else {
-            line.to_ascii_lowercase()
-                .contains(&self.query.to_ascii_lowercase())
-        }
+        debug_assert!(self.case_sensitive);
+        line.contains(&self.query)
     }
 }
 
